@@ -1,0 +1,15 @@
+version: "2"
+services:
+  django:
+    image: django-docker-demo:latest
+    ports:
+      - 8000:8000
+    volumes:
+      - ./django_demo/:/app/
+  celery-worker:
+    image: django-docker-demo:latest
+    volumes:
+      - ./django_demo/:/app/
+    command: "celery -A django_demo.tasks worker --loglevel=info"
+  redis:
+    image: redis:5.0-alpine
