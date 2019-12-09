@@ -17,9 +17,17 @@ def main():
         ) from exc
 
     if settings.DEBUG:
-        import ptvsd
+        if (  # as reload relauches itself, workaround for it
+            "--noreload" not in sys.argv
+            and os.environ.get("PTVSD_RELOAD", "no") == "no"
+        ):
+            os.environ["PTVSD_RELOAD"] = "yes"
+        else:
+            import ptvsd
 
-        ptvsd.enable_attach()
+            ptvsd.enable_attach()
+            if os.environ.get("DEBUGGER_WAIT_FOR_ATTACH", False):
+                ptvsd.wait_for_attach()
 
     execute_from_command_line(sys.argv)
 

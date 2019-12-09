@@ -32,7 +32,7 @@ Includes:
     ```Dockerfile
     FROM python
     COPY django_demo/ /app/
-    RUN pip install "Django>=3.0,<4"
+    RUN pip install --no-cache-dir "Django>=3.0,<4"
     ENV PYTHONUNBUFFERED=1
     CMD python /app/manage.py runserver 0.0.0.0:8000
     ```
@@ -53,7 +53,7 @@ Includes:
 1. Fix problems in Dockerfile
     ```Dockerfile
     FROM python:3.7-alpine
-    RUN pip install "Django>=3.0,<4"
+    RUN pip install --no-cache-dir "Django>=3.0,<4"
     COPY django_demo/ /app/
     ENV PYTHONUNBUFFERED=1
     CMD python /app/manage.py runserver 0.0.0.0:8000
@@ -103,7 +103,7 @@ Includes:
 
     - Install Celery 
         (as we are getting more dependencies, let's keep a `requirements.txt`)
-        ```
+        ```Dockerfile
         Django>=3.0,<4
         Celery>=4.3.0,<4.4
         redis>=3.3<3.4
@@ -113,7 +113,7 @@ Includes:
         FROM python:3.7-alpine
 
         COPY django_demo/requirements.txt /app/requirements.txt
-        RUN pip install -r /app/requirements.txt
+        RUN pip install --no-cache-dir -r /app/requirements.txt
         COPY django_demo/ /app/
 
         ENV PYTHONUNBUFFERED=1
@@ -122,8 +122,8 @@ Includes:
         CMD python /app/manage.py runserver 0.0.0.0:8000
         ```
     - Create a `docker-compose.yml` so we can keep 3 running services: django + redis + celery_worker
-        ```
-        version: "2"
+        ```yaml
+        version: "3.4"
         services:
             django:
                 image: django-docker-demo
@@ -156,7 +156,7 @@ Includes:
         from . import tasks
         def test_task(request):
             task = tasks.hello.delay(os.environ.get("HOSTNAME", "no_host"))
-            output_string = task.get(timeout=1)
+            output_string = task.get(timeout=5)
             return HttpResponse(output_string)
         ```
         update `django_demo/django_demo/urls.py`
@@ -240,18 +240,18 @@ Includes:
             ```dockerfile
             FROM python:3.7-alpine
 
-            RUN apk add --no-cache \
+            RUN apk add --update --no-cache \
                     bash \
                     build-base
 
             COPY django_demo/requirements-dev.txt /app/requirements.txt
-            RUN pip install -r /app/requirements.txt
+            RUN pip install --no-cache-dir -r /app/requirements.txt
             COPY django_demo/ /app/
 
             ENV PYTHONUNBUFFERED=1
             WORKDIR /app
 
-            CMD python /app/manage.py runserver 0.0.0.0:8000 --nothreading --noreload
+            CMD python /app/manage.py runserver 0.0.0.0:8000
             ```
             and build it again 
             ```
@@ -259,7 +259,7 @@ Includes:
             ```
         - expose port 5678 on django service inside `docker-compose.yml`
             ```yaml
-            version: "2"
+            version: "3.4"
             services:
                 django:
                     image: django-docker-demo:latest
@@ -280,8 +280,15 @@ Includes:
             ```python
             from django.conf import settings
             if settings.DEBUG:
-                import ptvsd
-                ptvsd.enable_attach()
+                if (  # as reload relauches itself, workaround for it
+                    "--noreload" not in sys.argv
+                    and os.environ.get("INTERNAL_FLAG", "nop") == "nop"
+                ):
+                    os.environ["INTERNAL_FLAG"] = "yes"
+                else:
+                    import ptvsd
+
+                    ptvsd.enable_attach()
             ```
         - add a remote debugger on your IDE. For vscode add a configuration to `.vscode/launch.json`
             ```json
@@ -289,17 +296,146 @@ Includes:
                 "name": "Python: Debug Django attach Docker",
                 "type": "python",
                 "request": "attach",
-                "subProcess": true,
                 "localRoot": "${workspaceFolder}/django_demo",
                 "remoteRoot": "/app",
                 "host": "127.0.0.1",
                 "port": 5678,
-                "redirectOutput": true,
-                "django": true
             },
             ```
         - and test it
             ```
             docker-compose up
-            ````
+            ```
             After adding a breakpoint inside `django_demo.views.hello_world()` reload your browser.
+
+1. Improve `Dockerfile`
+
+    - do not run as root.
+        ```Dockerfile
+        RUN adduser -D user
+        USER user
+        ```
+    - remove unnecessary dependencies. Keep different images for different uses (use multi-stage builds)
+        ```Dockerfile
+        FROM python:3.7-alpine AS base
+        ...
+        FROM base AS dev
+        ...
+        FROM base AS final
+        ...
+        ```
+    - clean your logs
+        ```yaml
+        services:
+            app:
+                ...
+                logging:
+                    options:
+                        max-size: "10m"
+                        max-file: "3"
+        ```
+    - next level caching (with Buildkit `DOCKER_BUILDKIT=1`)
+        ```Dockerfile
+        # syntax=docker/dockerfile:experimental
+        ...
+        ENV HOME /app
+        WORKDIR /app
+        RUN --mount=type=cache,uid=0,target=/app/.cache/pip,from=base \
+            pip install -r requirements.txt
+        ```
+        **note**: `# syntax=docker/dockerfile:experimental` on the first line of your `Dockerfile` is mandatory for using BUILDKIT new features
+    - quality as part of the pipeline
+        ```Dockerfile
+        FROM dev AS qa
+        RUN black --target-version=py37 --check --diff . 
+        RUN mypy --python-version=3.7 --pretty --show-error-context .
+        RUN coverage run django_demo/manage.py test
+        RUN django_demo/manage.py check --deploy --fail-level WARNING
+        ```
+
+    - Prepare Django for production
+        - Prepare Django for production - https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/ (out of the scope for this)
+        - Use a decent webserver <br>
+            > from: https://docs.djangoproject.com/en/3.0/ref/django-admin/#runserver <br>
+            DO NOT USE THIS SERVER IN A PRODUCTION SETTING. It has not gone through security audits or performance tests. 
+            (And that’s how it’s gonna stay. We’re in the business of making Web frameworks, not Web servers, 
+            so improving this server to be able to handle a production environment is outside the scope of Django.)
+        - build static files (you will need it for the new webserver)
+            ```Dockerfile
+            FROM dev AS staticfiles
+            RUN python manage.py collectstatic --noinput
+
+            FROM nginx:1.17-alpine
+            COPY conf/nginx.conf /etc/nginx/conf.d/default.conf
+            COPY --from=staticfiles /app/static /staticfiles/static
+            ```
+            and create the corresponding `conf/nginx.conf` (just a minimal example. Don't use in production)
+            ```
+            server {
+                listen 80 default_server;
+                server_name _;
+
+                location /static {
+                    root /staticfiles;
+                }
+
+                location / {
+                    proxy_pass http://django:8000;
+                }
+            }
+            ```
+     
+        - build a common entrypoint (so you don't have to change dockerfile later)
+            ```bash
+            #!/bin/sh
+            python manage.py migrate
+
+            case $DJANGO_DEBUG in
+                true|True|TRUE|1)
+                    echo "================= Starting debugger =================="
+                    python manage.py runserver 0.0.0.0:8000
+                    ;;
+                *)
+                    gunicorn --worker-class gevent -b 0.0.0.0:8000 django_demo.wsgi
+                    ;;
+            esac
+            ```
+        - you probably want to use a different database
+
+1. Update your docker-compose and run
+    `docker-compose.yml`
+    ```
+    version: "3.4"
+    services:
+        webserver:
+            image: django-docker-demo:webserver
+            build:
+                dockerfile: Dockerfile
+                target: webserver
+                context: .
+            ports:
+                - 8080:80
+        django:
+            image: django-docker-demo:dev
+            build:
+                dockerfile: Dockerfile
+                target: dev
+                context: .
+            environment:
+                - DJANGO_DEBUG=yes
+            ports:
+                - 8000:8000
+                - 5678:5678
+            volumes:
+                - ./django_demo/:/app/
+        celery-worker:
+            image: django-docker-demo:latest
+            build:
+                dockerfile: Dockerfile
+                context: .
+            volumes:
+                - ./django_demo/:/app/
+            command: "celery -A django_demo.tasks worker --loglevel=info"
+        redis:
+            image: redis:5.0-alpine
+    ```

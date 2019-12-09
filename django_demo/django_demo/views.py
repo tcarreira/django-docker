@@ -4,7 +4,7 @@ from . import tasks
 
 
 def hello_world(request):
-    output_string = "<h1>Hello People from this: {}".format(
+    output_string = "<h1>Hello world from: {}".format(
         os.environ.get("HOSTNAME", "no_host")
     )
 
@@ -13,5 +13,5 @@ def hello_world(request):
 
 def test_task(request):
     task = tasks.hello.delay(os.environ.get("HOSTNAME", "no_host"))
-    output_string = task.get(timeout=1)
-    return HttpResponse(output_string)
+    output_string = task.get(timeout=5)
+    return HttpResponse(f"<h1>{output_string}</h1>")

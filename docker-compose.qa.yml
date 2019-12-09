@@ -2,51 +2,32 @@ version: "3.4"
 services:
     webserver:
         image: django-docker-demo:webserver
-        build:
-            dockerfile: Dockerfile
-            target: webserver
-            context: .
         ports:
-            - 8080:80
+            - 80:80
     django:
-        image: django-docker-demo:dev
-        build:
-            dockerfile: Dockerfile
-            target: dev
-            context: .
-        ports:
-            - 8000:8000
-            - 5678:5678
-        volumes:
-            - ./django_demo/:/app/
+        image: django-docker-demo:latest
         environment:
-            DJANGO_DEBUG: "y"
+            DJANGO_DEBUG: "false"
+            DJANGO_SECRET_KEY: "AVhqJxkBn5cSS7Zp4jqWAMMAOXRoKfuOHduKVFUo"
             DJANGO_DB_HOST: "db"
-            DJANGO_DB_DATABASE: "django"
+            DJANGO_DB_DATABASE: "djangoqa"
             DJANGO_DB_USER: "djangouser"
             DJANGO_DB_PASSWORD: "djangouserpassword"
-
     celery-worker:
         image: django-docker-demo:latest
-        build:
-            dockerfile: Dockerfile
-            context: .
-        volumes:
-            - ./django_demo/:/app/
         command: "celery -A django_demo.tasks worker --loglevel=info"
     redis:
         image: redis:5.0-alpine
-    
     db:
         image: mariadb:10.4
         restart: always
         environment:
-            MYSQL_DATABASE: "django"
+            MYSQL_DATABASE: "djangoqa"
             MYSQL_USER: "djangouser"
             MYSQL_PASSWORD: "djangouserpassword"
             MYSQL_RANDOM_ROOT_PASSWORD: "yes"
         volumes:
-            - django-db:/var/lib/mysql
+            - django-db-qa:/var/lib/mysql
 
 volumes:
-    django-db:
+    django-db-qa:
