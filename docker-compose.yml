@@ -4,6 +4,7 @@ services:
     image: django-docker-demo:latest
     ports:
       - 8000:8000
+      - 5678:5678
     volumes:
       - ./django_demo/:/app/
   celery-worker:

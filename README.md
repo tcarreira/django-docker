@@ -2,10 +2,14 @@
 
 Includes:
 - django application
-- nginx as webserver (static content)
 - celery 
-- best practices for development (fast-dev + debug)
+- best practices for development 
+    - faster-dev (volumes)
+    - debugging
 - Dockerfile best practices
+- some production best practices
+    - do not run as root
+    - use gunicorn and serve static content
 
 
 # Workshop
@@ -167,3 +171,135 @@ Includes:
 
         - run `docker-compose up` (you can see the logs and terminate with ctrl+c. to run in background, add `-d`)
         - open http://127.0.0.1:8000/task
+
+
+    Now that things got a little confusing, it gets worse.
+
+1. What do you need to develop (not an exaustive list)
+    
+    | tool | what for | example |
+    | --- | --- | --- |
+    | a good IDE | auto-completion, debugging  | vscode |
+    | good IDE plugins | framework specifics (django) | `ms-python.python`, `batisteo.vscode-django` |
+    | linter | you need to have a real-time feedback about what is wrong | mypy |
+    | formatter | it's great for code sharing | black |
+    | unit tests | you should really not test your code. Make your computer do it | pytest |
+
+
+    **note**: keep a `requirements-dev.txt` with those development packages (`pip freeze` may help)
+    so you can install them without impact the docker image.
+
+    **tip**: for automatic linting and syntax checking, edit `.vscode/settings.json`:
+    ```
+    {
+        "python.pythonPath": "venv/bin/python3.7",
+        "editor.formatOnSave": true,
+        "python.formatting.provider": "black",
+        "python.linting.pylintEnabled": false,
+        "python.linting.mypyEnabled": true,
+        "python.linting.enabled": true
+    }
+    ```
+
+1. Debugging a Django application
+
+    example with vscode, which uses ptvsd for debugging, `.vscode/launch.json`
+    ```json
+    { 
+        "version": "0.2.0",
+        "configurations": [
+            {
+                "name": "Python: Current File",
+                "type": "python",
+                "request": "launch",
+                "program": "${file}",
+            }, 
+            {
+                "name": "Python: Debug Django",
+                "type": "python",
+                "request": "launch",
+                "program": "${workspaceFolder}/django_demo/manage.py",
+                "args": [
+                    "runserver",
+                    "--nothreading"
+                ],
+                "subProcess": true,
+            }
+        ]
+    }
+    ```
+
+    The first one is good enough for python scripts, but not so nice for django applications.
+    The second one is very good, but it runs locally (no docker)
+
+    or...
+
+    - You could be running a debugger with docker
+
+        - change the `Dockerfile` in order to include `requirements-dev.txt` instead of `requirements.txt` (we need development tools for debugging) and some other dependencies
+            ```dockerfile
+            FROM python:3.7-alpine
+
+            RUN apk add --no-cache \
+                    bash \
+                    build-base
+
+            COPY django_demo/requirements-dev.txt /app/requirements.txt
+            RUN pip install -r /app/requirements.txt
+            COPY django_demo/ /app/
+
+            ENV PYTHONUNBUFFERED=1
+            WORKDIR /app
+
+            CMD python /app/manage.py runserver 0.0.0.0:8000 --nothreading --noreload
+            ```
+            and build it again 
+            ```
+            docker build -t django-docker-demo .
+            ```
+        - expose port 5678 on django service inside `docker-compose.yml`
+            ```yaml
+            version: "2"
+            services:
+                django:
+                    image: django-docker-demo:latest
+                    ports:
+                        - "8000:8000"
+                        - "5678:5678"
+                    volumes:
+                        - "./django_demo/:/app/"
+                celery-worker:
+                    image: django-docker-demo:latest
+                    volumes:
+                        - "./django_demo/:/app/"
+                    command: "celery -A django_demo.tasks worker --loglevel=info"
+                redis:
+                    image: redis:5.0-alpine
+            ```
+        - modify `django_demo/manage.py` (add it inside main, before `execute_from_command_line(sys.argv)`)
+            ```python
+            from django.conf import settings
+            if settings.DEBUG:
+                import ptvsd
+                ptvsd.enable_attach()
+            ```
+        - add a remote debugger on your IDE. For vscode add a configuration to `.vscode/launch.json`
+            ```json
+            {
+                "name": "Python: Debug Django attach Docker",
+                "type": "python",
+                "request": "attach",
+                "subProcess": true,
+                "localRoot": "${workspaceFolder}/django_demo",
+                "remoteRoot": "/app",
+                "host": "127.0.0.1",
+                "port": 5678,
+                "redirectOutput": true,
+                "django": true
+            },
+            ```
+        - and test it
+            ```
+            docker-compose up
+            ````
+            After adding a breakpoint inside `django_demo.views.hello_world()` reload your browser.
