@@ -1,19 +1,39 @@
 # This is a tutorial on how to run Django with Docker
 
-Includes:
-- django application
+### TOC
+
+1. Start a Django project (from scratch)
+1. Setup Docker
+1. Testing Django
+1. Docker volumes for development
+1. Docker-compose - a simple multi-container orchestration tool
+1. Debugging a Django application
+1. Improve `Dockerfile` and other thing...
+1. Test it all together
+1. Last notes
+
+### Includes:
+
+- django
 - celery 
-- best practices for development 
-    - faster-dev (volumes)
-    - debugging
-- Dockerfile best practices
+- docker
+    - best practices for development 
+    - best practices for Dockerfile 
+    - volumes for fast development
+- debugging
 - some production best practices
     - do not run as root
     - use gunicorn and serve static content
+    - small docker image
+    - environemnt variables
 
 
 ### Previous notes
- 
+
+- This tutorial comes along with this presentation: 
+    - http://tcarreira.github.io/presentations/django-docker 
+    - ([also in portuguese - PT](http://tcarreira.github.io/presentations/django-docker/pt.html))
+
 - Development best practices 
 
     What do you need to develop? (not an exaustive list)
@@ -45,7 +65,7 @@ Includes:
         python django_demo/manage.py migrate
         python django_demo/manage.py createsuperuser --username admin --email ""
         ```
-        You may test it with `python django_demo/manage.py runserver 0.0.0.0:8000` and open the browser at http://120.0.0.1:8000
+        You may test it with `python django_demo/manage.py runserver 0.0.0.0:8000` and open the browser at http://127.0.0.1:8000
     
 1. Setup Docker
 
@@ -78,11 +98,11 @@ Includes:
         build after minor change: 0:22
 
         problems:
-        * COPY files before pip install
-        * use docker images tags (alpine if possible)
-        * beware of context (.dockerignore)
+        - COPY files before pip install
+        - use docker images tags (alpine if possible)
+        - beware of context (.dockerignore)
 
-    - Fix problems in Dockerfile
+    - Identify some problems in Dockerfile
         ```Dockerfile
         FROM python:3.7-alpine
         RUN pip install --no-cache-dir "Django>=3.0,<4"
@@ -137,7 +157,7 @@ Includes:
 
     now, every time you change some file, django wil reload itself. Very useful for developmemt.
 
-1. docker-compose - a simple multi-container orchestration tool
+1. Docker-compose - a simple multi-container orchestration tool
 
     Let's add some more dependencies: Celery (**This is a major step**)
 
@@ -412,31 +432,6 @@ Includes:
                 }
             }
             ```
-     
-        - build a common entrypoint (so you don't have to change dockerfile later)
-            ```bash
-            #!/bin/bash
-
-            # wait until database is ready
-            if [[ ${DJANGO_DB_HOST} != "" ]]; then
-                while !</dev/tcp/${DJANGO_DB_HOST}/${DJANGO_DB_PORT:-3306} ; do 
-                    sleep 1;
-                    [[ $((counter++)) -gt 60 ]] && break
-                done
-            fi
-
-            python manage.py migrate
-
-            case $DJANGO_DEBUG in
-                true|True|TRUE|1|YES|Yes|yes|y|Y)
-                    echo "================= Starting debugger =================="
-                    python manage.py runserver 0.0.0.0:8000
-                    ;;
-                *)
-                    gunicorn --worker-class gevent -b 0.0.0.0:8000 django_demo.wsgi
-                    ;;
-            esac
-            ```
         - you probably want to use a different database
 
             add to your `docker-compose.yml`
@@ -470,8 +465,33 @@ Includes:
                     "PORT": os.environ.get("DJANGO_DB_PORT", "3306"),
                 }
             ```
+     
+        - build a common entrypoint (so you don't have to change dockerfile later)
+            ```bash
+            #!/bin/bash
 
-1. Now, let's test it all together
+            # wait until database is ready
+            if [[ ${DJANGO_DB_HOST} != "" ]]; then
+                while !</dev/tcp/${DJANGO_DB_HOST}/${DJANGO_DB_PORT:-3306} ; do 
+                    sleep 1;
+                    [[ $((counter++)) -gt 60 ]] && break
+                done
+            fi
+
+            python manage.py migrate
+
+            case $DJANGO_DEBUG in
+                true|True|TRUE|1|YES|Yes|yes|y|Y)
+                    echo "================= Starting debugger =================="
+                    python manage.py runserver 0.0.0.0:8000
+                    ;;
+                *)
+                    gunicorn --worker-class gevent -b 0.0.0.0:8000 django_demo.wsgi
+                    ;;
+            esac
+            ```
+
+1. Test it all together
 
     **note**: now it's a good time for `git clone https://github.com/tcarreira/django-docker.git`
 
@@ -540,15 +560,15 @@ Includes:
 
     and run 
     ```
-    DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 ~/docker-compose-1.25.1-rc1 -f docker-compose.yml  up --build
+    DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 docker-compose up --build
     ```
 
     **note**: you need docker-compose >= 1.25 in order to use builkit directly. If you don't have it, build images first, then docker-compose 
 
 
-1. last notes
+1. Last notes
 
-    keep separate `docker-compose.qa.yml` for testing with final images
+    - keep separate `docker-compose.qa.yml` for testing/qa with final images
     ```yaml
     version: "3.4"
     services:
@@ -593,3 +613,12 @@ Includes:
     volumes:
         django-db-qa:
     ```
+
+    - And build your continuous integration process (this is a simple process)
+        
+        - Code + commit + push 
+        - auto-start CI/CD process
+        - `DOCKER_BUILDKIT=1 docker build -t django-docker-demo:qa --target=qa .` (this is the test stage)
+        - `DOCKER_BUILDKIT=1 docker build -t django-docker-demo:dev --target=dev .` + push docker image dev internally (optional)
+        - `DOCKER_BUILDKIT=1 docker build -t django-docker-demo:latest --target .` + push official docker image
+        - update running containers (outside the scope of this tutorial)
