@@ -4,6 +4,8 @@ services:
         image: django-docker-demo:webserver
         ports:
             - 80:80
+        logging: { options: { max-size: "10m", max-file: "3" } }
+            
     django:
         image: django-docker-demo:latest
         environment:
@@ -13,11 +15,17 @@ services:
             DJANGO_DB_DATABASE: "djangoqa"
             DJANGO_DB_USER: "djangouser"
             DJANGO_DB_PASSWORD: "djangouserpassword"
+        logging: { options: { max-size: "10m", max-file: "3" } }
+
     celery-worker:
         image: django-docker-demo:latest
         command: "celery -A django_demo.tasks worker --loglevel=info"
+        logging: { options: { max-size: "10m", max-file: "3" } }
+
     redis:
         image: redis:5.0-alpine
+        logging: { options: { max-size: "10m", max-file: "3" } }
+        
     db:
         image: mariadb:10.4
         restart: always
@@ -28,6 +36,7 @@ services:
             MYSQL_RANDOM_ROOT_PASSWORD: "yes"
         volumes:
             - django-db-qa:/var/lib/mysql
+        logging: { options: { max-size: "10m", max-file: "3" } }
 
 volumes:
     django-db-qa:

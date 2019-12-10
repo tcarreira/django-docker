@@ -8,7 +8,6 @@ if [[ ${DJANGO_DB_HOST} != "" ]]; then
     done
 fi
 
-
 python manage.py migrate
 
 case $DJANGO_DEBUG in

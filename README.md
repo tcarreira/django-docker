@@ -12,63 +12,99 @@ Includes:
     - use gunicorn and serve static content
 
 
+### Previous notes
+ 
+- Development best practices 
+
+    What do you need to develop? (not an exaustive list)
+    
+    | tool | what for | example |
+    | --- | --- | --- |
+    | a good IDE | auto-completion, debugging  | vscode |
+    | good IDE plugins | framework specifics (django) | `ms-python.python`,<br>`batisteo.vscode-django` |
+    | linter | you need to have a real-time feedback about what is wrong | mypy |
+    | formatter | it's great for code sharing | black |
+    | unit tests | you should really not test your code. Make your computer do it | pytest |
+    | code-to-execution | low latency after writing your code until it gets executed | manage.py runserver |
+
+
+
 # Workshop
 
-1. Setup VirtualEnv and install Django
-    ```
-    virtualenv -p $(which python3) venv
-    . ./venv/bin/activate
-    pip install "Django>=3.0,<4"
-    ```
-1. Create django project and initial setup
-    ```
-    django-admin startproject django_demo .
-    python django_demo/manage.py makemigrations
-    python django_demo/manage.py migrate
-    python django_demo/manage.py createsuperuser --username admin --email ""
-    ```
-    You may test it with `python django_demo/manage.py runserver 0.0.0.0:8000` and open the browser at http://120.0.0.1:8000
-1. Setup a first draft of a Dockerfile, so we can see what is bad in this draft
-    ```Dockerfile
-    FROM python
-    COPY django_demo/ /app/
-    RUN pip install --no-cache-dir "Django>=3.0,<4"
-    ENV PYTHONUNBUFFERED=1
-    CMD python /app/manage.py runserver 0.0.0.0:8000
-    ```
-    and test it
-    ```
-    docker build -t django-docker-demo .
-    docker run -it --rm -p8000:8000 django-docker-demo
-    ``` 
+1. Start a Django project (from scratch)
+    - Setup VirtualEnv and install Django
+        ```
+        virtualenv -p $(which python3) venv
+        . ./venv/bin/activate
+        pip install "Django>=3.0,<4"
+        ```
+    - Create django project and initial setup
+        ```
+        django-admin startproject django_demo .
+        python django_demo/manage.py makemigrations
+        python django_demo/manage.py migrate
+        python django_demo/manage.py createsuperuser --username admin --email ""
+        ```
+        You may test it with `python django_demo/manage.py runserver 0.0.0.0:8000` and open the browser at http://120.0.0.1:8000
+    
+1. Setup Docker
 
-    build for the first time: 2:18<br>
-    build after minor change: 0:22
+    - Install Docker
 
-    problems:
-    * COPY files before 
-    * use docker images tags (alpine if possible)
-    * beware of context (.dockerignore)
+        - Do NOT install from apt-get: very outdated (almost useless)
+        - Windows - Docker Desktop
+            - https://docs.docker.com/docker-for-windows/install/
+        - Mac - Docker Desktop
+            - https://docs.docker.com/docker-for-mac/install/
+        - Linux
+            - Brain dead easy way: `wget -qO- https://get.docker.com | sh`
+            - Other way: https://docs.docker.com/install/
 
-1. Fix problems in Dockerfile
-    ```Dockerfile
-    FROM python:3.7-alpine
-    RUN pip install --no-cache-dir "Django>=3.0,<4"
-    COPY django_demo/ /app/
-    ENV PYTHONUNBUFFERED=1
-    CMD python /app/manage.py runserver 0.0.0.0:8000
-    ```
-    and `.dockerignore`
-    ```
-    venv/
-    __pycache__/
-    db.sqlite3
-    ```
-    From `Sending build context to Docker daemon  42.42MB` to `...156.7kB`
+    - Setup a first draft of a Dockerfile, so we can see what is bad in this draft
+        ```Dockerfile
+        FROM python
+        COPY django_demo/ /app/
+        RUN pip install --no-cache-dir "Django>=3.0,<4"
+        ENV PYTHONUNBUFFERED=1
+        CMD python /app/manage.py runserver 0.0.0.0:8000
+        ```
+        and test it
+        ```
+        docker build -t django-docker-demo .
+        docker run -it --rm -p8000:8000 django-docker-demo
+        ``` 
 
-    build for the first time: 1:37<br>
-    build after minor change: 0:03
-1. Let's create our own Django content
+        build for the first time: 2:18<br>
+        build after minor change: 0:22
+
+        problems:
+        * COPY files before pip install
+        * use docker images tags (alpine if possible)
+        * beware of context (.dockerignore)
+
+    - Fix problems in Dockerfile
+        ```Dockerfile
+        FROM python:3.7-alpine
+        RUN pip install --no-cache-dir "Django>=3.0,<4"
+        COPY django_demo/ /app/
+        ENV PYTHONUNBUFFERED=1
+        CMD python /app/manage.py runserver 0.0.0.0:8000
+        ```
+        and `.dockerignore`
+        ```
+        venv/
+        __pycache__/
+        db.sqlite3
+        ```
+        From `Sending build context to Docker daemon  42.42MB` to `...156.7kB`
+
+        build for the first time: 1:37<br>
+        build after minor change: 0:03
+
+1. Testing Django
+
+    Let's create our own Django content
+
     create `django_demo/django_demo/views.py`
     ```python
     import os
@@ -90,18 +126,25 @@ Includes:
     ]
     ```
 
-1. Dispite the fast building time, I don't want to rebuild+restart every time I change something
+1. Docker volumes for development
+
+    Dispite the fast building time, I don't want to rebuild+restart every time I change something
+    
     add volume on docker run
     ```
     docker run -it --rm -p8000:8000 -v "$(pwd)/django_demo/:/app/" django-docker-demo
     ``` 
 
     now, every time you change some file, django wil reload itself. Very useful for developmemt.
-1. Let's add some more dependencies: Celery (**This is a major step**)
 
-    We are going to use Redis as a message broker, for simplicity
+1. docker-compose - a simple multi-container orchestration tool
 
-    - Install Celery 
+    Let's add some more dependencies: Celery (**This is a major step**)
+
+    Celery depends on a message broker, and we are going to use Redis, for simplicity
+
+    - Install Celery and Redis client
+
         (as we are getting more dependencies, let's keep a `requirements.txt`)
         ```Dockerfile
         Django>=3.0,<4
@@ -109,7 +152,7 @@ Includes:
         redis>=3.3<3.4
         ```
         and update `Dockerfile` (now we don't need to update this with every dependency change)
-        ```
+        ```Dockerfile
         FROM python:3.7-alpine
 
         COPY django_demo/requirements.txt /app/requirements.txt
@@ -175,31 +218,9 @@ Includes:
 
     Now that things got a little confusing, it gets worse.
 
-1. What do you need to develop (not an exaustive list)
-    
-    | tool | what for | example |
-    | --- | --- | --- |
-    | a good IDE | auto-completion, debugging  | vscode |
-    | good IDE plugins | framework specifics (django) | `ms-python.python`, `batisteo.vscode-django` |
-    | linter | you need to have a real-time feedback about what is wrong | mypy |
-    | formatter | it's great for code sharing | black |
-    | unit tests | you should really not test your code. Make your computer do it | pytest |
 
-
-    **note**: keep a `requirements-dev.txt` with those development packages (`pip freeze` may help)
-    so you can install them without impact the docker image.
-
-    **tip**: for automatic linting and syntax checking, edit `.vscode/settings.json`:
-    ```
-    {
-        "python.pythonPath": "venv/bin/python3.7",
-        "editor.formatOnSave": true,
-        "python.formatting.provider": "black",
-        "python.linting.pylintEnabled": false,
-        "python.linting.mypyEnabled": true,
-        "python.linting.enabled": true
-    }
-    ```
+    <br><br>
+    *do you remeber some development best practices?*
 
 1. Debugging a Django application
 
@@ -282,12 +303,11 @@ Includes:
             if settings.DEBUG:
                 if (  # as reload relauches itself, workaround for it
                     "--noreload" not in sys.argv
-                    and os.environ.get("INTERNAL_FLAG", "nop") == "nop"
+                    and os.environ.get("PTVSD_RELOAD", "no") == "no"
                 ):
-                    os.environ["INTERNAL_FLAG"] = "yes"
+                    os.environ["PTVSD_RELOAD"] = "yes"
                 else:
                     import ptvsd
-
                     ptvsd.enable_attach()
             ```
         - add a remote debugger on your IDE. For vscode add a configuration to `.vscode/launch.json`
@@ -308,7 +328,10 @@ Includes:
             ```
             After adding a breakpoint inside `django_demo.views.hello_world()` reload your browser.
 
-1. Improve `Dockerfile`
+1. Improve `Dockerfile` and other thing...
+
+    **note**: this list is not fully comprehensive.<br> 
+    You may clone the code with everying with `git clone https://github.com/tcarreira/django-docker.git`
 
     - do not run as root.
         ```Dockerfile
@@ -334,7 +357,11 @@ Includes:
                         max-size: "10m"
                         max-file: "3"
         ```
-    - next level caching (with Buildkit `DOCKER_BUILDKIT=1`)
+        or shorter:
+        ```yaml
+                logging: { options: { max-size: "10m", max-file: "3" } }
+        ```
+    - next level caching (with Buildkit `DOCKER_BUILDKIT=1`) - https://github.com/moby/buildkit
         ```Dockerfile
         # syntax=docker/dockerfile:experimental
         ...
@@ -360,7 +387,8 @@ Includes:
             DO NOT USE THIS SERVER IN A PRODUCTION SETTING. It has not gone through security audits or performance tests. 
             (And that’s how it’s gonna stay. We’re in the business of making Web frameworks, not Web servers, 
             so improving this server to be able to handle a production environment is outside the scope of Django.)
-        - build static files (you will need it for the new webserver)
+            
+            and  build static files (you will need it for the new webserver)
             ```Dockerfile
             FROM dev AS staticfiles
             RUN python manage.py collectstatic --noinput
@@ -387,11 +415,20 @@ Includes:
      
         - build a common entrypoint (so you don't have to change dockerfile later)
             ```bash
-            #!/bin/sh
+            #!/bin/bash
+
+            # wait until database is ready
+            if [[ ${DJANGO_DB_HOST} != "" ]]; then
+                while !</dev/tcp/${DJANGO_DB_HOST}/${DJANGO_DB_PORT:-3306} ; do 
+                    sleep 1;
+                    [[ $((counter++)) -gt 60 ]] && break
+                done
+            fi
+
             python manage.py migrate
 
             case $DJANGO_DEBUG in
-                true|True|TRUE|1)
+                true|True|TRUE|1|YES|Yes|yes|y|Y)
                     echo "================= Starting debugger =================="
                     python manage.py runserver 0.0.0.0:8000
                     ;;
@@ -402,7 +439,43 @@ Includes:
             ```
         - you probably want to use a different database
 
-1. Update your docker-compose and run
+            add to your `docker-compose.yml`
+            ```yaml
+                db:
+                    image: mariadb:10.4
+                    restart: always
+                    environment:
+                        MYSQL_DATABASE: "django"
+                        MYSQL_USER: "user"
+                        MYSQL_PASSWORD: "pass"
+                        MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+                    volumes:
+                        - django-db:/var/lib/mysql
+            ```
+            and configure your `django_demo/django_demo/settings.py`
+            ```python
+            # If database is defined, overrides the default
+            if (
+                os.environ.get("DJANGO_DB_HOST")
+                and os.environ.get("DJANGO_DB_DATABASE")
+                and os.environ.get("DJANGO_DB_USER")
+                and os.environ.get("DJANGO_DB_PASSWORD")
+            ):
+                DATABASES["default"] = {
+                    "ENGINE": "django.db.backends.mysql",
+                    "NAME": os.environ.get("DJANGO_DB_DATABASE", ""),
+                    "USER": os.environ.get("DJANGO_DB_USER", ""),
+                    "PASSWORD": os.environ.get("DJANGO_DB_PASSWORD", ""),
+                    "HOST": os.environ.get("DJANGO_DB_HOST", ""),
+                    "PORT": os.environ.get("DJANGO_DB_PORT", "3306"),
+                }
+            ```
+
+1. Now, let's test it all together
+
+    **note**: now it's a good time for `git clone https://github.com/tcarreira/django-docker.git`
+
+    Update your docker-compose
     `docker-compose.yml`
     ```
     version: "3.4"
@@ -415,19 +488,26 @@ Includes:
                 context: .
             ports:
                 - 8080:80
+            logging: { options: { max-size: "10m", max-file: "3" } }
         django:
             image: django-docker-demo:dev
             build:
                 dockerfile: Dockerfile
                 target: dev
                 context: .
-            environment:
-                - DJANGO_DEBUG=yes
             ports:
                 - 8000:8000
                 - 5678:5678
             volumes:
                 - ./django_demo/:/app/
+            environment:
+                DJANGO_DEBUG: "y"
+                DJANGO_DB_HOST: "db"
+                DJANGO_DB_DATABASE: "django"
+                DJANGO_DB_USER: "djangouser"
+                DJANGO_DB_PASSWORD: "djangouserpassword"
+            logging: { options: { max-size: "10m", max-file: "3" } }
+
         celery-worker:
             image: django-docker-demo:latest
             build:
@@ -436,6 +516,80 @@ Includes:
             volumes:
                 - ./django_demo/:/app/
             command: "celery -A django_demo.tasks worker --loglevel=info"
+            logging: { options: { max-size: "10m", max-file: "3" } }
+
         redis:
             image: redis:5.0-alpine
+            logging: { options: { max-size: "10m", max-file: "3" } }
+        
+        db:
+            image: mariadb:10.4
+            restart: always
+            environment:
+                MYSQL_DATABASE: "django"
+                MYSQL_USER: "djangouser"
+                MYSQL_PASSWORD: "djangouserpassword"
+                MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+            volumes:
+                - django-db:/var/lib/mysql
+            logging: { options: { max-size: "10m", max-file: "3" } }
+
+    volumes:
+        django-db:
+    ```
+
+    and run 
+    ```
+    DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 ~/docker-compose-1.25.1-rc1 -f docker-compose.yml  up --build
+    ```
+
+    **note**: you need docker-compose >= 1.25 in order to use builkit directly. If you don't have it, build images first, then docker-compose 
+
+
+1. last notes
+
+    keep separate `docker-compose.qa.yml` for testing with final images
+    ```yaml
+    version: "3.4"
+    services:
+        webserver:
+            image: django-docker-demo:webserver
+            ports:
+                - 80:80
+            logging: { options: { max-size: "10m", max-file: "3" } }
+                
+        django:
+            image: django-docker-demo:latest
+            environment:
+                DJANGO_DEBUG: "false"
+                DJANGO_SECRET_KEY: "AVhqJxkBn5cSS7Zp4jqWAMMAOXRoKfuOHduKVFUo"
+                DJANGO_DB_HOST: "db"
+                DJANGO_DB_DATABASE: "djangoqa"
+                DJANGO_DB_USER: "djangouser"
+                DJANGO_DB_PASSWORD: "djangouserpassword"
+            logging: { options: { max-size: "10m", max-file: "3" } }
+
+        celery-worker:
+            image: django-docker-demo:latest
+            command: "celery -A django_demo.tasks worker --loglevel=info"
+            logging: { options: { max-size: "10m", max-file: "3" } }
+
+        redis:
+            image: redis:5.0-alpine
+            logging: { options: { max-size: "10m", max-file: "3" } }
+            
+        db:
+            image: mariadb:10.4
+            restart: always
+            environment:
+                MYSQL_DATABASE: "djangoqa"
+                MYSQL_USER: "djangouser"
+                MYSQL_PASSWORD: "djangouserpassword"
+                MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+            volumes:
+                - django-db-qa:/var/lib/mysql
+            logging: { options: { max-size: "10m", max-file: "3" } }
+
+    volumes:
+        django-db-qa:
     ```
