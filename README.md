@@ -232,6 +232,7 @@
         ```
     - Finally, we can test our setup
 
+        - build docker image: `docker build -t django-docker-demo .`
         - run `docker-compose up` (you can see the logs and terminate with ctrl+c. to run in background, add `-d`)
         - open http://127.0.0.1:8000/task
 
