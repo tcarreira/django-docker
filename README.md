@@ -99,7 +99,7 @@
 
         problems:
         - COPY files before pip install
-        - use docker images tags (alpine if possible)
+        - not using docker images tags (use alpine if possible)
         - beware of context (.dockerignore)
 
     - Identify some problems in Dockerfile
@@ -121,7 +121,7 @@
         build for the first time: 1:37<br>
         build after minor change: 0:03
 
-1. Testing Django
+1. Testing Django (with Docker)
 
     Let's create our own Django content
 
@@ -159,7 +159,7 @@
 
 1. Docker-compose - a simple multi-container orchestration tool
 
-    Let's add some more dependencies: Celery (**This is a major step**)
+    Let's add some more dependencies: Celery + Redis (**This is a major step**)
 
     Celery depends on a message broker, and we are going to use Redis, for simplicity
 
@@ -351,7 +351,6 @@
 
 1. Improve `Dockerfile` and other thing...
 
-    **note**: this list is not fully comprehensive.<br> 
     You may clone the code with everying with `git clone https://github.com/tcarreira/django-docker.git`
 
     - do not run as root.
@@ -433,6 +432,7 @@
                 }
             }
             ```
+
         - you probably want to use a different database
 
             add to your `docker-compose.yml`
@@ -564,7 +564,7 @@
     DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 docker-compose up --build
     ```
 
-    **note**: you need docker-compose >= 1.25 in order to use builkit directly. If you don't have it, build images first, then docker-compose 
+    **note**: you need docker-compose >= 1.25 in order to use builkit directly. If you don't have it, build images first, then run `docker-compose up`
 
 
 1. Last notes
@@ -615,7 +615,7 @@
         django-db-qa:
     ```
 
-    - And build your continuous integration process (this is a simple process)
+    - And build your continuous integration process (this is a simple example)
         
         - Code + commit + push 
         - auto-start CI/CD process
