@@ -1,0 +1,31 @@
+{ 
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+        }, 
+        {
+            "name": "Python: Debug Django",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/django_demo/manage.py",
+            "args": [
+                "runserver",
+                "--nothreading"
+            ],
+            "subProcess": true,
+        },
+        {
+            "name": "Python: Debug Django attach Docker",
+            "type": "python",
+            "request": "attach",
+            "localRoot": "${workspaceFolder}/django_demo",
+            "remoteRoot": "/app",
+            "host": "127.0.0.1",
+            "port": 5678,
+        },
+    ]
+}

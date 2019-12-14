@@ -60,7 +60,7 @@
         ```
     - Criar um projeto Django e configurações iniciais
         ```
-        django-admin startproject django_demo .
+        django-admin startproject django_demo
         python django_demo/manage.py makemigrations
         python django_demo/manage.py migrate
         python django_demo/manage.py createsuperuser --username admin --email ""
@@ -131,7 +131,7 @@
     from django.http import HttpResponse
 
     def hello_world(request):
-        output_string = "<h1>Hello People from {}".format(os.environ.get("HOSTNAME", "no_host"))
+        output_string = "<h1>Hello World from {}".format(os.environ.get("HOSTNAME", "no_host"))
         return HttpResponse(output_string)
     ```
     alterar `django_demo/django_demo/urls.py`
@@ -165,7 +165,7 @@
     
     - Instalar Celery e cliente de Redis
 
-        (como estamos a adicionar mais dependências, vamos manter um ficheiro à parte com as mesmas `requirements.txt`)
+        (como estamos a adicionar mais dependências, vamos manter um ficheiro à parte com as mesmas `django_demo/requirements.txt`)
         ```Dockerfile
         Django>=3.0,<4
         Celery>=4.3.0,<4.4
@@ -198,9 +198,9 @@
                 image: django-docker-demo
                 volumes:
                     - ./django_demo/:/app/
-                command: "celery -A django-worker.tasks worker --loglevel=info"
+                command: "celery -A django_demo.tasks worker --loglevel=info"
             redis:
-                image: redis
+                image: redis:5.0-alpine
         ```
     - Atualizar o código python com um teste
 
@@ -212,7 +212,7 @@
 
         @app.task
         def hello(caller_host):
-            return "Hi {}! This is {}.".format(caller_host, os.environ.get("HOSTNAME", 'celery_worker_hostname'))
+            return "<h1>Hi {}! This is {}.</h1>".format(caller_host, os.environ.get("HOSTNAME", 'celery_worker_hostname'))
         ```
         adicioanr ao `django_demo/django_demo/views.py`
         ```python
@@ -277,7 +277,41 @@
     ou...
 
     - Podemos correr o depurador diretamente com docker
-
+        - criar um `requirements-dev.txt` com as dependências para desenvolvimento (resultado do `pip freeze`) (nota: este exemplo tem demasiados pacotes)
+            ```
+            amqp==2.5.2
+            appdirs==1.4.3
+            asgiref==3.2.3
+            astroid==2.3.3
+            attrs==19.3.0
+            billiard==3.6.1.0
+            black==19.10b0
+            celery==4.3.0
+            Click==7.0
+            Django==3.0
+            importlib-metadata==1.2.0
+            isort==4.3.21
+            kombu==4.6.7
+            lazy-object-proxy==1.4.3
+            mccabe==0.6.1
+            more-itertools==8.0.2
+            mypy==0.750
+            mypy-extensions==0.4.3
+            pathspec==0.6.0
+            ptvsd==4.3.2
+            pylint==2.4.4
+            pytz==2019.3
+            redis==3.3.11
+            regex==2019.11.1
+            six==1.13.0
+            sqlparse==0.3.0
+            toml==0.10.0
+            typed-ast==1.4.0
+            typing-extensions==3.7.4.1
+            vine==1.3.0
+            wrapt==1.11.2
+            zipp==0.6.0
+            ```
         - alterar o `Dockerfile` para incluir um `requirements-dev.txt` em vez do `requirements.txt` (precisamos das ferramentas de depuração instaladas) e mais algumas dependências
             ```dockerfile
             FROM python:3.7-alpine
@@ -498,7 +532,7 @@
 
     atualizar o docker-compose
     `docker-compose.yml`
-    ```
+    ```yaml
     version: "3.4"
     services:
         webserver:
