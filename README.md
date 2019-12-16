@@ -277,7 +277,7 @@
     or...
 
     - You could be running a debugger with docker
-        - create a `requirements-dev.txt` which has every dev package (result from `pip freeze`) (note: this example has too many packages)
+        - create a `django_demo/requirements-dev.txt` which has every dev package (result from `pip freeze`) (note: this example has too many packages)
             ```
             amqp==2.5.2
             appdirs==1.4.3

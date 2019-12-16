@@ -277,7 +277,7 @@
     ou...
 
     - Podemos correr o depurador diretamente com docker
-        - criar um `requirements-dev.txt` com as dependências para desenvolvimento (resultado do `pip freeze`) (nota: este exemplo tem demasiados pacotes)
+        - criar um `django_demo/requirements-dev.txt` com as dependências para desenvolvimento (resultado do `pip freeze`) (nota: este exemplo tem demasiados pacotes)
             ```
             amqp==2.5.2
             appdirs==1.4.3
