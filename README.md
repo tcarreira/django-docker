@@ -1,3 +1,5 @@
+(also in PT-PT: https://github.com/tcarreira/django-docker/blob/master/README-PT.md)
+
 # This is a tutorial on how to run Django with Docker
 
 ### TOC
