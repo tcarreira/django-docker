@@ -56,7 +56,7 @@
         ```
         virtualenv -p $(which python3) venv
         . ./venv/bin/activate
-        pip install "Django>=3.0,<4"
+        pip install "Django>=3.0.3,<4"
         ```
     - Criar um projeto Django e configurações iniciais
         ```
@@ -84,7 +84,7 @@
         ```Dockerfile
         FROM python
         COPY django_demo/ /app/
-        RUN pip install --no-cache-dir "Django>=3.0,<4"
+        RUN pip install --no-cache-dir "Django>=3.0.3,<4"
         ENV PYTHONUNBUFFERED=1
         CMD python /app/manage.py runserver 0.0.0.0:8000
         ```
@@ -105,7 +105,7 @@
     - Identificar alguns problemas no Dockerfile
         ```Dockerfile
         FROM python:3.7-alpine
-        RUN pip install --no-cache-dir "Django>=3.0,<4"
+        RUN pip install --no-cache-dir "Django>=3.0.3,<4"
         COPY django_demo/ /app/
         ENV PYTHONUNBUFFERED=1
         CMD python /app/manage.py runserver 0.0.0.0:8000
@@ -167,7 +167,7 @@
 
         (como estamos a adicionar mais dependências, vamos manter um ficheiro à parte com as mesmas `django_demo/requirements.txt`)
         ```Dockerfile
-        Django>=3.0,<4
+        Django>=3.0.3,<4
         Celery>=4.3.0,<4.4
         redis>=3.3<3.4
         ```
@@ -288,7 +288,7 @@
             black==19.10b0
             celery==4.3.0
             Click==7.0
-            Django==3.0
+            Django==3.0.3
             importlib-metadata==1.2.0
             isort==4.3.21
             kombu==4.6.7
