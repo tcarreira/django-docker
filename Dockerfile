@@ -24,7 +24,6 @@ RUN --mount=type=cache,id=apk,sharing=locked,target=/var/cache/apk \
         build-base \
         libevent \
         mariadb-dev \
-        py-mysqldb \
         python-dev 
 
 COPY --chown=user django_demo/requirements.txt requirements.txt
