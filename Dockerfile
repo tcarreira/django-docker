@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:experimental
+# syntax=docker/dockerfile:1
 
 ### How to build docker images:
 # DOCKER_BUILDKIT=1 docker build -t django-docker-demo:latest .
