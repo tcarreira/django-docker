@@ -28,7 +28,7 @@ pytz==2019.3
 redis==3.3.11
 regex==2019.11.1
 six==1.13.0
-sqlparse==0.3.0
+sqlparse==0.4.4
 toml==0.10.0
 typed-ast==1.4.0
 typing-extensions==3.7.4.1
